@@ -4,3 +4,11 @@
 
 restart:
   description: Restart memcached and flush cache content.
+
+get-stats:
+  description: Restart memcached unit stats.
+  params:
+    settings:
+      description: Return stats settings
+      type: boolean
+      default: false

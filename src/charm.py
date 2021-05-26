@@ -5,14 +5,17 @@
 # Learn more at: https://juju.is/docs/sdk
 
 import logging
+import pprint
 import subprocess
-
 
 from ops.charm import CharmBase, HookEvent, RelationEvent, ActionEvent
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, Container, ModelError
 from ops.pebble import APIError, ConnectionError, Layer, ServiceStatus
+
+from pymemcache.client.base import Client
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ class MemcachedK8SCharm(CharmBase):
 
         # Actions
         self.framework.observe(self.on.restart_action, self._on_restart_action)
+        self.framework.observe(self.on.get_stats_action, self._on_get_stats_action)
 
         # Relations
         self.framework.observe(
@@ -96,6 +100,17 @@ class MemcachedK8SCharm(CharmBase):
 
         event.set_results({"restart": "Memcached is restarted"})
 
+    def _on_get_stats_action(self, event: ActionEvent) -> None:
+        """Handle the get-stats action"""
+        client = Client("localhost:{}".format(self._stored.tcp_port))
+        settings = event.params["settings"]
+        pp = pprint.PrettyPrinter()
+        if settings:
+            stats = client.stats("settings")
+        else:
+            stats = client.stats()
+        result = pp.pformat(dict([(k.decode("utf-8"), v) for k, v in stats.items()]))
+        event.set_results({"get-stats": result})
     #
     # Relations
     #
