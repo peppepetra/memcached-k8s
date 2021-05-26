@@ -1,0 +1,6 @@
+# Copyright 2021 Canonical ltd.
+# See LICENSE file for licensing details.
+#
+
+restart:
+  description: Restart memcached and flush cache content.

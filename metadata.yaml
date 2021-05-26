@@ -1,0 +1,30 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: memcached-k8s
+description: |
+  memcached optimizes specific high-load serving applications that are designed
+  to take advantage of its versatile no-locking memory access system. Clients
+  are available in several different programming languages, to suit the needs
+  of the specific application. Traditionally this has been used in mod_perl
+  apps to avoid storing large chunks of data in Apache memory, and to share
+  this burden across several machines.
+summary: A high-performance memory object caching system
+maintainer: Llama (LMA) Charmers <llama-charmers@lists.ubuntu.com>
+tags:
+  - cache
+  - caching
+  - memory
+  - system
+
+provides:
+  memcache:
+    interface: memcache
+
+containers:
+  memcached:
+    resource: memcached-image
+
+resources:
+  memcached-image:
+    type: oci-image
+    description: OCI image for memcached
