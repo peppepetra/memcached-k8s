@@ -16,7 +16,6 @@ from ops.pebble import APIError, ConnectionError, Layer, ServiceStatus
 
 from pymemcache.client.base import Client
 
-
 logger = logging.getLogger(__name__)
 
 WORKLOAD_CONTAINER = "memcached"
@@ -34,6 +33,7 @@ class MemcachedK8SCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        # Hooks
         self.framework.observe(self.on.memcached_pebble_ready, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
@@ -48,6 +48,9 @@ class MemcachedK8SCharm(CharmBase):
 
         self._stored.set_default(tcp_port=-1, udp_port=0)
 
+    #
+    # Hooks
+    #
     def _on_config_changed(self, event: HookEvent) -> None:
         """Handle the pebble_ready and config_changed event for the memcached container."""
 
@@ -104,13 +107,17 @@ class MemcachedK8SCharm(CharmBase):
         """Handle the get-stats action"""
         client = Client("localhost:{}".format(self._stored.tcp_port))
         settings = event.params["settings"]
-        pp = pprint.PrettyPrinter()
+
         if settings:
             stats = client.stats("settings")
         else:
             stats = client.stats()
+
+        # Decode byte string keys of dict result and pretty print it
+        pp = pprint.PrettyPrinter()
         result = pp.pformat(dict([(k.decode("utf-8"), v) for k, v in stats.items()]))
         event.set_results({"get-stats": result})
+
     #
     # Relations
     #
@@ -140,7 +147,7 @@ class MemcachedK8SCharm(CharmBase):
             tcp_port = DEFAULT_TCP_PORT
 
         self._stored.tcp_port = tcp_port
-        cmd.append("-p {}".format(tcp_port))
+        cmd.append(f"-p {tcp_port}")
         logger.info(f"Listening on TCP port {tcp_port}")
 
         # Configure UDP port
@@ -148,7 +155,7 @@ class MemcachedK8SCharm(CharmBase):
         if udp_port > 0 and 1023 < udp_port < 49151:
             self._stored.udp_port = udp_port
             logger.info(f"Using UDP port {udp_port}")
-            cmd.append("-U {}".format(self.config["udp-port"]))
+            cmd.append(f"-U {udp_port}")
         else:
             logger.debug("Not using UDP port")
 
@@ -159,7 +166,7 @@ class MemcachedK8SCharm(CharmBase):
                 f"Memory size provided lower than 64. Using default {DEFAULT_MEMORY_SIZE} MB")
             mem_size = DEFAULT_MEMORY_SIZE
 
-        cmd.append("-m {}".format(mem_size))
+        cmd.append(f"-m {mem_size}")
         logger.info(f"Memory size set to {mem_size} MB")
 
         # Configuring connection limit
@@ -170,7 +177,7 @@ class MemcachedK8SCharm(CharmBase):
                 f"Using default {DEFAULT_CONNECTION_LIMIT}")
             connection_limit = DEFAULT_CONNECTION_LIMIT
 
-        cmd.append("-c {}".format(connection_limit))
+        cmd.append(f"-c {connection_limit}")
         logger.info(f"Connection limit set to {connection_limit}")
 
         # Configuring request limit
@@ -181,7 +188,7 @@ class MemcachedK8SCharm(CharmBase):
                 f"Using default {DEFAULT_REQUEST_LIMIT}")
             request_limit = DEFAULT_REQUEST_LIMIT
 
-        cmd.append("-R {}".format(request_limit))
+        cmd.append(f"-R {request_limit}")
         logger.info(f"Request limit set to {request_limit}")
 
         # Configuring threads
@@ -191,7 +198,7 @@ class MemcachedK8SCharm(CharmBase):
                 f"Provided negative number threads {threads}. Using default {DEFAULT_THREADS}")
             threads = DEFAULT_THREADS
 
-        cmd.append("-t {}".format(threads))
+        cmd.append(f"-t {threads}")
         logger.info(f"Threads set to {threads}")
 
         pebble_layer = {

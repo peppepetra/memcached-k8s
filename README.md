@@ -12,6 +12,19 @@ You can deploy a memcached instance with
 
     juju deploy memcached-k8s
 
+The charm provides two actions:
+
+1. `restart`: restart and flush content of a memcached unit
+
+
+    juju run-action --wait memcached-k8s/0 restart 
+
+2. `get-stats`: returns memcached stats. It accepts a boolean argument `settings` (default `false`) to get the memcached settings (ref. [Memcached cheat sheet](https://lzone.de/cheat-sheet/memcached))
+
+
+    juju run-action --wait memcached-k8s/0 get-stats                 # equivalent memcached command "stats"
+    juju run-action --wait memcached-k8s/0 get-stats settings=true   # equivalent memcached command "stats settings"
+
 
 ## Developing
 
