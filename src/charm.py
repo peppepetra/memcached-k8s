@@ -19,7 +19,7 @@ from pymemcache.client.base import Client
 logger = logging.getLogger(__name__)
 
 WORKLOAD_CONTAINER = "memcached"
-DEFAULT_TCP_PORT = 12111
+DEFAULT_TCP_PORT = 11211
 DEFAULT_MEMORY_SIZE = 64
 DEFAULT_THREADS = 4
 DEFAULT_REQUEST_LIMIT = 20
@@ -46,7 +46,7 @@ class MemcachedK8SCharm(CharmBase):
             self.on["memcache"].relation_joined, self._on_memcache_relation_joined
         )
 
-        self._stored.set_default(tcp_port=-1, udp_port=0)
+        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0)
 
     #
     # Hooks
@@ -78,13 +78,14 @@ class MemcachedK8SCharm(CharmBase):
             return
 
         # If the service is INACTIVE, then skip this step
-        if self._is_running(container, WORKLOAD_CONTAINER):
+        if self._is_running(container, WORKLOAD_CONTAINER):  # pragma: no cover
             container.stop(WORKLOAD_CONTAINER)
         container.start(WORKLOAD_CONTAINER)
 
         # Update cache relation data if available.
         for relation in self.model.relations['memcache']:
-            relation.data[self.unit]["host"] = subprocess.check_output(["unit-get", "private-address"]).decode().strip()
+            relation.data[self.unit]["host"] = subprocess.check_output(
+                ["unit-get", "private-address"]).decode().strip()
             relation.data[self.unit]["port"] = str(self._stored.tcp_port)
             relation.data[self.unit]["udp-port"] = str(self._stored.udp_port)
 
@@ -97,7 +98,7 @@ class MemcachedK8SCharm(CharmBase):
         """Handle the restart action"""
         container = self.unit.get_container(WORKLOAD_CONTAINER)
         # If the service is INACTIVE, then skip this step
-        if self._is_running(container, WORKLOAD_CONTAINER):
+        if self._is_running(container, WORKLOAD_CONTAINER):  # pragma: no cover
             container.stop(WORKLOAD_CONTAINER)
         container.start(WORKLOAD_CONTAINER)
 
@@ -224,5 +225,5 @@ class MemcachedK8SCharm(CharmBase):
             return False
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main(MemcachedK8SCharm)
