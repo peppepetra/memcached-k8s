@@ -3,9 +3,11 @@
 # See LICENSE file for licensing details.
 #
 # Learn more at: https://juju.is/docs/sdk
-
+import base64
 import logging
+import os
 import pprint
+import ssl
 import subprocess
 
 from ops.charm import CharmBase, HookEvent, RelationEvent, ActionEvent
@@ -24,6 +26,9 @@ DEFAULT_MEMORY_SIZE = 64
 DEFAULT_THREADS = 4
 DEFAULT_REQUEST_LIMIT = 20
 DEFAULT_CONNECTION_LIMIT = 1024
+SSL_CERT_PATH = "/cert.pem"
+SSL_KEY_PATH = "/key.key"
+SSL_CA_CERT_PATH = "/cacert.pem"
 
 
 class MemcachedK8SCharm(CharmBase):
@@ -46,7 +51,7 @@ class MemcachedK8SCharm(CharmBase):
             self.on["memcache"].relation_joined, self._on_memcache_relation_joined
         )
 
-        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0)
+        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0, ssl_enable=False)
 
     #
     # Hooks
@@ -61,6 +66,11 @@ class MemcachedK8SCharm(CharmBase):
             logger.debug(f"The Pebble API is not ready yet. Error message: {error}")
             event.defer()
             return
+
+        # Push certificates if available
+        self._push_certificates(container)
+        # Write the ca_cert to the charm the
+        self._render_ca_cert_to_charm_container()
 
         logger.debug(f"[*] container plan => {plan}")
         pebble_config = Layer(raw=self._memcached_layer())
@@ -106,7 +116,15 @@ class MemcachedK8SCharm(CharmBase):
 
     def _on_get_stats_action(self, event: ActionEvent) -> None:
         """Handle the get-stats action"""
-        client = Client("localhost:{}".format(self._stored.tcp_port))
+        tls_context = None
+        if self._stored.ssl_enabled:
+            tls_context = ssl.create_default_context(
+                cafile=SSL_CA_CERT_PATH,
+            )
+            # This is needed as client contact memcached always on localhost
+            tls_context.check_hostname = False
+
+        client = Client("localhost:{}".format(self._stored.tcp_port), tls_context=tls_context)
         settings = event.params["settings"]
 
         if settings:
@@ -202,6 +220,17 @@ class MemcachedK8SCharm(CharmBase):
         cmd.append(f"-t {threads}")
         logger.info(f"Threads set to {threads}")
 
+        if self.config.get("ssl-cert"):
+            cmd.append("--enable-ssl")
+            cmd.append(f"-o ssl_chain_cert={SSL_CERT_PATH}")
+            self._stored.ssl_enabled = True
+
+        if self.config.get("ssl-key"):
+            cmd.append(f"-o ssl_key={SSL_KEY_PATH}")
+
+        if self.config.get("ssl-ca"):
+            cmd.append(f"-o ssl_ca_cert={SSL_CA_CERT_PATH}")
+
         pebble_layer = {
             "summary": "memcached layer",
             "description": "pebble config layer for memcached",
@@ -223,6 +252,29 @@ class MemcachedK8SCharm(CharmBase):
             return svc.current == ServiceStatus.ACTIVE
         except ModelError:
             return False
+
+    def _push_certificates(self, container: Container) -> None:
+        """Push certificates to the workload container"""
+        if self.config.get("ssl-cert"):
+            certificate = base64.b64decode(self.config["ssl-cert"])
+            container.push(SSL_CERT_PATH, certificate, permissions=0o600)
+            logger.info(f"Pushed SSL certificate to memcached at {SSL_CERT_PATH}")
+        if self.config.get("ssl-key"):
+            cert_key = base64.b64decode(self.config["ssl-key"])
+            container.push(SSL_KEY_PATH, cert_key, permissions=0o600)
+            logger.info(f"Pushed SSL key to memcached at {SSL_KEY_PATH}")
+        if self.config.get("ssl-ca"):
+            ca_cert = base64.b64decode(self.config["ssl-ca"])
+            container.push(SSL_CA_CERT_PATH, ca_cert, permissions=0o600)
+            logger.info(f"Pushed SSL CA cert to memcached at {SSL_CA_CERT_PATH}")
+
+    def _render_ca_cert_to_charm_container(self) -> None:
+        """Render CA cert to the charm container for the get-stats action."""
+        if self.config.get("ssl-ca"):
+            with open(SSL_CA_CERT_PATH, "w+") as fh:
+                ca_cert = base64.b64decode(self.config["ssl-ca"])
+                fh.write(ca_cert.decode("utf-8"))
+            os.chmod(SSL_CA_CERT_PATH, 0o600)
 
 
 if __name__ == "__main__":  # pragma: no cover

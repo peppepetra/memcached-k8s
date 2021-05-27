@@ -4,7 +4,7 @@ options:
     size:
         description: |
             Size of memcache pool in MiB (memcached option -m)
-            Values smaller than 64, default to 64 (memcached minimum requirement)
+            Values smaller than 64 default to 64 (memcached minimum requirement)
         type: int
         default: 768
     connection-limit:
@@ -37,4 +37,22 @@ options:
             0 or negative values take to the memcached default (4)
         type: int
         default: 4
-
+    ssl-cert:
+        type: string
+        default:
+        description: |
+            Base64 encoded SSL certificate to use with memcached. Setting this
+            value and ssl_key will TLS connection to memcached.
+            NOTE: TLS is not currently supported by the memcache interface.
+    ssl-key:
+        type: string
+        default:
+        description: |
+            Base64 encoded SSL key to use with certificate specified as ssl-cert.
+            This is oonly required if the key is not part oof the ssl-cert
+    ssl-ca:
+        type: string
+        default:
+        description: |
+            SSL CA to use with the certificate and key provided - this is only
+            required if you are providing a privately signed ssl-cert and ssl-key.

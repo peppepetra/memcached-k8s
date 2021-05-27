@@ -153,6 +153,7 @@ class TestCharm(unittest.TestCase):
     @patch("pymemcache.client.base.Client.stats")
     def test__on_get_stats_action(self, client_stats: MagicMock):
         action_event = MagicMock(params={"settings": False})
+        self.harness.charm._stored.ssl_enabled = False
         self.harness.charm._on_get_stats_action(action_event)
 
         action_event.set_results.assert_called()
@@ -161,6 +162,7 @@ class TestCharm(unittest.TestCase):
     @patch("pymemcache.client.base.Client.stats")
     def test__on_get_stats_action_with_settings(self, client_stats: MagicMock):
         action_event = MagicMock(params={"settings": True})
+        self.harness.charm._stored.ssl_enabled = False
         self.harness.charm._on_get_stats_action(action_event)
 
         action_event.set_results.assert_called()
