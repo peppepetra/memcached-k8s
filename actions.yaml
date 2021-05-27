@@ -6,7 +6,7 @@ restart:
   description: Restart memcached and flush cache content.
 
 get-stats:
-  description: Restart memcached unit stats.
+  description: Return memcached stats. Pass argument `settings=true` to return settings
   params:
     settings:
       description: Return stats settings
