@@ -27,7 +27,7 @@ DEFAULT_THREADS = 4
 DEFAULT_REQUEST_LIMIT = 20
 DEFAULT_CONNECTION_LIMIT = 1024
 SSL_CERT_PATH = "/cert.pem"
-SSL_KEY_PATH = "/key.key"
+SSL_KEY_PATH = "/ssl_key.key"
 SSL_CA_CERT_PATH = "/cacert.pem"
 
 
@@ -51,6 +51,7 @@ class MemcachedK8SCharm(CharmBase):
             self.on["memcache"].relation_joined, self._on_memcache_relation_joined
         )
 
+        # Set defaults for variable stored in the StoredState
         self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0, ssl_enable=False)
 
     #

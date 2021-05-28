@@ -4,7 +4,7 @@
 # Learn more about testing at: https://juju.is/docs/sdk/testing
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 from charm import MemcachedK8SCharm
 from ops.model import ActiveStatus, MaintenanceStatus
@@ -120,6 +120,30 @@ class TestCharm(unittest.TestCase):
         self.assertIn("-t 4", plan.to_yaml())
         self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
 
+    @patch("os.chmod")
+    @patch("ops.model.Container.push")
+    @patch("base64.b64decode")
+    def test__on_config_changed_with_ssl(self, b64decode: MagicMock,
+                                         container_push: MagicMock,
+                                         os_chmod: MagicMock) -> None:
+        mock_open_file = mock_open()
+        with patch('builtins.open', mock_open_file):
+            self.harness.update_config({
+                "ssl-cert": "SSL_CERT",
+                "ssl-key": "SSL_KEY",
+                "ssl-ca": "SSL_CA"
+            })
+
+            plan = self.harness.get_container_pebble_plan("memcached")
+            b64decode.assert_called()
+            container_push.assert_called()
+            os_chmod.assert_called()
+            self.assertIn("--enable-ssl", plan.to_yaml())
+            self.assertIn("ssl_chain_cert=/cert.pem", plan.to_yaml())
+            self.assertIn("ssl_key=/ssl_key.key", plan.to_yaml())
+            self.assertIn("ssl_ca_cert=/cacert.pem", plan.to_yaml())
+            self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+
     @patch("subprocess.check_output")
     def test__on_config_changed_with_rel_memcached_joined(self, check_output: MagicMock) -> None:
         check_output.return_value = b"10.0.0.1"
@@ -166,4 +190,15 @@ class TestCharm(unittest.TestCase):
         self.harness.charm._on_get_stats_action(action_event)
 
         action_event.set_results.assert_called()
+        client_stats.assert_called_with("settings")
+
+    @patch("ssl.create_default_context")
+    @patch("pymemcache.client.base.Client.stats")
+    def test__on_get_stats_action_with_tls(self, client_stats: MagicMock, ssl_context: MagicMock):
+        action_event = MagicMock(params={"settings": True})
+        self.harness.charm._stored.ssl_enabled = True
+        self.harness.charm._on_get_stats_action(action_event)
+
+        action_event.set_results.assert_called()
+        ssl_context.assert_called_with(cafile="/cacert.pem")
         client_stats.assert_called_with("settings")
