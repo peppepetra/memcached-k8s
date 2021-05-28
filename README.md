@@ -30,6 +30,34 @@ The charm provides two actions:
     juju run-action --wait memcached-k8s/0 get-stats settings=true   # equivalent memcached command "stats settings"
 ```
 
+### Configuration
+
+You can configure the following parameters using `juju config memcached-k8s`
+
+* `size`: Size of memcache pool in MiB (memcached option -m). Values smaller than 64 default to 64 (memcached minimum requirement)
+* `connection-limit`: maximum simultaneous connections (memcached option -c). 0 or negative values take to the memcached default (1024)
+* `request-limit`: limit of requests a single client can make at one time (memcached option -R). 0 or negative values take to the memcached default (20)
+* `tcp-port`: TCP port to listen on (memcached option -p). Invalid tcp ports take to the memcached default (11211)
+* `udp-port`: UDP port to listen on (memcached option -U). 0 or invalid port disable udp listener
+* `threads`: number of threads to use. (memcached option -t). 0 or negative values take to the memcached default (4)
+
+### Using TLS
+
+To start Memcached with TLS enabled you need to configure a base64 encoded SSL Certificate with:
+```
+juju config memcached-k8s ssl-cert="$(base64 ssl_cert.pem)"
+```
+
+If the certificate does not include the SSL key, you need to provide it separately:
+```
+juju config memcached-k8s ssl-key="$(base64 server.key)" 
+```
+
+If you are providing a privately signed ssl-cert and ssl-key, you need to provide also the CA certificate with:
+```
+juju config memcached-k8s ssl-ca="$(base64 cacert.pem)"
+```
+
 ## Roadmap
 
 * Add hugepages support. Blocked by [LP#1919976](https://bugs.launchpad.net/juju/+bug/1919976)
