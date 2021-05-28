@@ -52,7 +52,7 @@ class MemcachedK8SCharm(CharmBase):
         )
 
         # Set defaults for variable stored in the StoredState
-        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0, ssl_enable=False)
+        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0, ssl_enabled=False)
 
     #
     # Hooks
