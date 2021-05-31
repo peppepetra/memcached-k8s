@@ -34,12 +34,12 @@ The charm provides two actions:
 
 You can configure the following parameters using `juju config memcached-k8s`
 
-* `size`: Size of memcache pool in MiB (memcached option -m). Values smaller than 64 default to 64 (memcached minimum requirement)
-* `connection-limit`: maximum simultaneous connections (memcached option -c). 0 or negative values take to the memcached default (1024)
-* `request-limit`: limit of requests a single client can make at one time (memcached option -R). 0 or negative values take to the memcached default (20)
-* `tcp-port`: TCP port to listen on (memcached option -p). Invalid tcp ports take to the memcached default (11211)
+* `size`: Size of memcache pool in MiB (memcached option -m). Values smaller than 64 are not valid.
+* `connection-limit`: maximum simultaneous connections (memcached option -c). 0 or negative values are not valid.
+* `request-limit`: limit of requests a single client can make at one time (memcached option -R). 0 or negative value sare not valid.
+* `tcp-port`: TCP port to listen on (memcached option -p).
 * `udp-port`: UDP port to listen on (memcached option -U). 0 or invalid port disable udp listener
-* `threads`: number of threads to use. (memcached option -t). 0 or negative values take to the memcached default (4)
+* `threads`: number of threads to use. (memcached option -t). 0 or negative values are not valid.
 
 ### Using TLS
 

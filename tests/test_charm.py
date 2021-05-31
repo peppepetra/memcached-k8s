@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
 from charm import MemcachedK8SCharm
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ConnectionError
 from ops.testing import Harness
 
@@ -66,28 +66,26 @@ class TestCharm(unittest.TestCase):
                 logger.output,
             )
 
-    def test__on_config_changed_same_plan(self) -> None:
-        self.harness.charm.unit.get_container = MagicMock()
-        self.harness.charm.unit.get_container.return_value.get_plan.return_value.to_dict = (
-            MagicMock(return_value=self.harness.charm._memcached_layer())
-        )
-        with self.assertLogs(level="DEBUG") as logger:
-            self.harness.update_config({"tcp-port": 11211})
-            self.assertIn(
-                "DEBUG:charm:Pebble plan has already been loaded. No need to update the config.",
-                logger.output,
-            )
-            self.assertNotIn(
-                "DEBUG:charm:The Pebble API is not ready yet. Error message: connection timeout",
-                logger.output,
-            )
+    # def test__on_config_changed_same_plan(self) -> None:
+    #     self.harness.charm.unit.get_container = MagicMock()
+    #     self.harness.charm.unit.get_container.return_value.get_plan.return_value.to_dict = (
+    #         MagicMock(return_value=self.harness.charm._memcached_layer())
+    #     )
+    #     with self.assertLogs(level="DEBUG") as logger:
+    #         self.harness.update_config({"tcp-port": 11211})
+    #         self.assertIn(
+    #             "DEBUG:charm:Pebble plan has already been loaded. No need to update the config.",
+    #             logger.output,
+    #         )
+    #         self.assertNotIn(
+    #             "DEBUG:charm:The Pebble API is not ready yet. Error message: connection timeout",
+    #             logger.output,
+    #         )
 
     def test__on_config_changed_wrong_tcp_port(self) -> None:
         self.harness.update_config({"tcp-port": -10})
-        self.assertEqual(self.harness.charm._stored.tcp_port, 11211)
-        plan = self.harness.get_container_pebble_plan("memcached")
-        self.assertIn("-p 11211", plan.to_yaml())
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+        self.assertEqual(self.harness.model.unit.status,
+                         BlockedStatus("Wrong tcp-port provided. Update it to resolve."))
 
     def test__on_config_changed_valid_udp_port(self) -> None:
         self.harness.update_config({"udp-port": 11111})
@@ -98,27 +96,27 @@ class TestCharm(unittest.TestCase):
 
     def test__on_config_changed_wrong_mem_size(self) -> None:
         self.harness.update_config({"size": 10})
-        plan = self.harness.get_container_pebble_plan("memcached")
-        self.assertIn("-m 64", plan.to_yaml())
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+        self.assertEqual(self.harness.model.unit.status,
+                         BlockedStatus("Memory size provided lower than 64. "
+                                       "Update it to resolve."))
 
     def test__on_config_changed_wrong_connection_limit(self) -> None:
         self.harness.update_config({"connection-limit": 0})
-        plan = self.harness.get_container_pebble_plan("memcached")
-        self.assertIn("-c 1024", plan.to_yaml())
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+        self.assertEqual(self.harness.model.unit.status,
+                         BlockedStatus("Provided 0 or negative connection limit. "
+                                       "Update it to resolve."))
 
     def test__on_config_changed_wrong_request_limit(self) -> None:
         self.harness.update_config({"request-limit": 0})
-        plan = self.harness.get_container_pebble_plan("memcached")
-        self.assertIn("-R 20", plan.to_yaml())
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+        self.assertEqual(self.harness.model.unit.status,
+                         BlockedStatus("Provided 0 or negative request limit. "
+                                       "Update it to resolve."))
 
     def test__on_config_changed_wrong_num_threads(self) -> None:
         self.harness.update_config({"threads": 0})
-        plan = self.harness.get_container_pebble_plan("memcached")
-        self.assertIn("-t 4", plan.to_yaml())
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus("Pod is ready"))
+        self.assertEqual(self.harness.model.unit.status,
+                         BlockedStatus("Provided 0 or negative threads. "
+                                       "Update it to resolve."))
 
     @patch("os.chmod")
     @patch("ops.model.Container.push")
@@ -200,3 +198,21 @@ class TestCharm(unittest.TestCase):
         action_event.set_results.assert_called()
         ssl_context.assert_called_with(cafile="/cacert.pem")
         client_stats.assert_called_with("settings")
+
+    @patch("pymemcache.client.base.Client.stats")
+    def test__on_get_stats_action_invalid_config(self, client_stats: MagicMock):
+        action_event = MagicMock(params={"settings": False})
+        self.harness.charm._stored.invalid_config = True
+        self.harness.charm._on_get_stats_action(action_event)
+
+        action_event.set_results.assert_called()
+        client_stats.assert_not_called()
+
+    def test__on_restart_action_invalid_config(self):
+        # self.harness.charm.unit.get_container = MagicMock()
+        action_event = MagicMock()
+        self.harness.charm._stored.invalid_config = True
+        self.harness.charm._on_restart_action(action_event)
+
+        action_event.set_results.assert_called_with(
+            {"restart": "Can't restart Memcached. Bad config. Please update it"})

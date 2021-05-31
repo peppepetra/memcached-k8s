@@ -4,25 +4,24 @@ options:
     size:
         description: |
             Size of memcache pool in MiB (memcached option -m)
-            Values smaller than 64 default to 64 (memcached minimum requirement)
+            Values smaller than 64 are not valid
         type: int
         default: 768
     connection-limit:
         description: |
             maximum simultaneous connections (memcached option -c)
-            0 or negative values take to the memcached default (1024)
+            0 or negative values are not valid.
         type: int
         default: 1024
     request-limit:
         description: |
             limit of requests a single client can make at one time (memcached option -R)
-            0 or negative values take to the memcached default (20)
+            0 or negative values are not valid.
         type: int
         default: 20
     tcp-port:
         description: |
             TCP port to listen on (memcached option -p)
-            Invalid tcp ports take to the memcached default (11211)
         type: int
         default: 11211
     udp-port:
@@ -34,7 +33,7 @@ options:
     threads:
         description: |
             number of threads to use. (memcached option -t)
-            0 or negative values take to the memcached default (4)
+            0 or negative values are not valid.
         type: int
         default: 4
     ssl-cert:

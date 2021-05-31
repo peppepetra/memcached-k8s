@@ -13,7 +13,7 @@ import subprocess
 from ops.charm import CharmBase, HookEvent, RelationEvent, ActionEvent
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, Container, ModelError
+from ops.model import ActiveStatus, BlockedStatus, Container, ModelError
 from ops.pebble import APIError, ConnectionError, Layer, ServiceStatus
 
 from pymemcache.client.base import Client
@@ -52,7 +52,8 @@ class MemcachedK8SCharm(CharmBase):
         )
 
         # Set defaults for variable stored in the StoredState
-        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0, ssl_enabled=False)
+        self._stored.set_default(tcp_port=DEFAULT_TCP_PORT, udp_port=0,
+                                 ssl_enabled=False, invalid_config=False)
 
     #
     # Hooks
@@ -74,11 +75,21 @@ class MemcachedK8SCharm(CharmBase):
         self._render_ca_cert_to_charm_container()
 
         logger.debug(f"[*] container plan => {plan}")
-        pebble_config = Layer(raw=self._memcached_layer())
-        # If there's no new config, do nothing
-        if plan.get("services", {}) == pebble_config.to_dict()["services"]:
-            logger.debug("Pebble plan has already been loaded. No need to update the config.")
+
+        # If the service is INACTIVE, then skip this step
+        if self._is_running(container, WORKLOAD_CONTAINER):  # pragma: no cover
+            logger.info("Stopping memcached container.")
+            container.stop(WORKLOAD_CONTAINER)
+
+        memcached_layer = self._memcached_layer()
+        if memcached_layer is None:
+            logger.info(f"Invalid Memcached layer.")
+            self._stored.invalid_config = True
             return
+
+        self._stored.invalid_config = False
+
+        pebble_config = Layer(raw=memcached_layer)
 
         try:
             # Add config layer
@@ -88,9 +99,7 @@ class MemcachedK8SCharm(CharmBase):
             event.defer()
             return
 
-        # If the service is INACTIVE, then skip this step
-        if self._is_running(container, WORKLOAD_CONTAINER):  # pragma: no cover
-            container.stop(WORKLOAD_CONTAINER)
+        logger.info("Starting memcached container.")
         container.start(WORKLOAD_CONTAINER)
 
         # Update cache relation data if available.
@@ -109,6 +118,10 @@ class MemcachedK8SCharm(CharmBase):
         """Handle the restart action"""
         container = self.unit.get_container(WORKLOAD_CONTAINER)
         # If the service is INACTIVE, then skip this step
+        if self._stored.invalid_config:
+            event.set_results({"restart": "Can't restart Memcached. Bad config. Please update it"})
+            return
+
         if self._is_running(container, WORKLOAD_CONTAINER):  # pragma: no cover
             container.stop(WORKLOAD_CONTAINER)
         container.start(WORKLOAD_CONTAINER)
@@ -117,6 +130,11 @@ class MemcachedK8SCharm(CharmBase):
 
     def _on_get_stats_action(self, event: ActionEvent) -> None:
         """Handle the get-stats action"""
+        if self._stored.invalid_config:
+            event.set_results({"get-stats": "Can't get  Memcached's stats. "
+                                            "Bad config. Please update it"})
+            return
+
         tls_context = None
         if self._stored.ssl_enabled:
             tls_context = ssl.create_default_context(
@@ -164,7 +182,8 @@ class MemcachedK8SCharm(CharmBase):
         tcp_port = self.config["tcp-port"]
         if tcp_port < 1023 or tcp_port > 49151:
             logger.debug(f"Wrong tcp-port provided: {tcp_port}. Using default {DEFAULT_TCP_PORT}")
-            tcp_port = DEFAULT_TCP_PORT
+            self.unit.status = BlockedStatus("Wrong tcp-port provided. Update it to resolve.")
+            return
 
         self._stored.tcp_port = tcp_port
         cmd.append(f"-p {tcp_port}")
@@ -184,7 +203,9 @@ class MemcachedK8SCharm(CharmBase):
         if mem_size < 64:
             logger.debug(
                 f"Memory size provided lower than 64. Using default {DEFAULT_MEMORY_SIZE} MB")
-            mem_size = DEFAULT_MEMORY_SIZE
+            self.unit.status = BlockedStatus("Memory size provided lower than 64. "
+                                             "Update it to resolve.")
+            return
 
         cmd.append(f"-m {mem_size}")
         logger.info(f"Memory size set to {mem_size} MB")
@@ -195,7 +216,9 @@ class MemcachedK8SCharm(CharmBase):
             logger.debug(
                 f"Provided negative connection limit {connection_limit}. "
                 f"Using default {DEFAULT_CONNECTION_LIMIT}")
-            connection_limit = DEFAULT_CONNECTION_LIMIT
+            self.unit.status = BlockedStatus("Provided 0 or negative connection limit. "
+                                             "Update it to resolve.")
+            return
 
         cmd.append(f"-c {connection_limit}")
         logger.info(f"Connection limit set to {connection_limit}")
@@ -206,7 +229,9 @@ class MemcachedK8SCharm(CharmBase):
             logger.debug(
                 f"Provided negative request limit {request_limit}. "
                 f"Using default {DEFAULT_REQUEST_LIMIT}")
-            request_limit = DEFAULT_REQUEST_LIMIT
+            self.unit.status = BlockedStatus("Provided 0 or negative request limit. "
+                                             "Update it to resolve.")
+            return
 
         cmd.append(f"-R {request_limit}")
         logger.info(f"Request limit set to {request_limit}")
@@ -216,7 +241,9 @@ class MemcachedK8SCharm(CharmBase):
         if threads < 1:
             logger.debug(
                 f"Provided negative number threads {threads}. Using default {DEFAULT_THREADS}")
-            threads = DEFAULT_THREADS
+            self.unit.status = BlockedStatus("Provided 0 or negative threads. "
+                                             "Update it to resolve.")
+            return
 
         cmd.append(f"-t {threads}")
         logger.info(f"Threads set to {threads}")
