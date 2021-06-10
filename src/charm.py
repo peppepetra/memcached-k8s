@@ -83,7 +83,7 @@ class MemcachedK8SCharm(CharmBase):
 
         memcached_layer = self._memcached_layer()
         if memcached_layer is None:
-            logger.info(f"Invalid Memcached layer.")
+            logger.info("Invalid Memcached layer.")
             self._stored.invalid_config = True
             return
 
