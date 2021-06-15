@@ -10,6 +10,7 @@ description: |
   this burden across several machines.
 summary: A high-performance memory object caching system
 maintainer: Llama (LMA) Charmers <llama-charmers@lists.ubuntu.com>
+docs: https://discourse.charmhub.io/t/memcached-k8s-docs-index/4735
 tags:
   - cache
   - caching
